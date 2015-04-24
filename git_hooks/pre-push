@@ -1,0 +1,44 @@
+#!/bin/bash
+#This hook tests the status of builds in Jenkins before pushing and alerts the user to whether any of them are currently failing.
+#The user then has the choice to push anyway or cancel.
+
+#To use:
+#Copy this file into [gitProjectFolder]/.git/hooks/
+#Ensure file name is 'pre-push'
+
+# Allows us to read user input below, assigns stdin to keyboard
+exec < /dev/tty
+
+remote="$1"
+url="$2"
+
+builds=("aListOf" "buildsYouWant" "toCheckAreFailing")
+failedBuilds=()
+
+regex="\"result\":\"[[:alnum:]]*\""
+
+for build in "${builds[@]}"
+do
+	result=$(curl -s http://pathToJenkinsServer/job/$build/lastCompletedBuild/api/json | grep -o $regex)
+
+	echo $build : $result
+	[[ ! $result =~ SUCCESS ]] && failedBuilds+=($build)
+
+done
+
+if [ ${#failedBuilds[@]} -eq 0 ]; then
+	echo "No builds are failing :)"
+	exit 0
+else
+	echo The following builds are RED: ${failedBuilds[*]}.
+
+	echo "Still want to push???"
+	select yn in "Yes" "No"; do
+	    case $yn in
+		Yes ) echo "Pushing anyway"; exit 0; break;;
+		No ) echo "Canceling push"; exit 1;;
+	    esac
+	done
+fi
+#If you want to be able to push through intelliJ (but get no warning of failing builds) exit 0 below, other wise exit 1 but you won't be able to push through intelliJ.
+exit 0
